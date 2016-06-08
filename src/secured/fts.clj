@@ -27,6 +27,8 @@
       result
       (recur f (rest coll) (f result (first coll)))))
 
+
+;;; FTS ;;;
 (defn index [coll]
   (let [mapped (map-indexed vector coll)]
   (build append-record mapped {})))
@@ -40,14 +42,13 @@
   (map-indexed (fn [idx & _] (take-by-inc-index idx word)) (seq word)))
 
 (defn map-arbitrary-indexed [idx coll]
-    (map #(conj [idx] %) coll))
+    (map #(conj [idx] (str %)) coll))
 
-(defn word-dict [idx word]
-  {:index idx :substrings (substrings word) :entry word})
-
-(defn minimum-prefixes [coll minimum])
+(defn indexed-substrings [idx word]
+  (let [possible-subs (substrings word)]
+  (map-arbitrary-indexed idx possible-subs)))
 
 (defn trie [coll]
-  (let [substrings (map-indexed vector coll)]
-  (build append-record substrings {})))
+  (let [concatted-substrings (apply concat (map-indexed #(indexed-substrings %1 %2) coll))]
+  (build append-record concatted-substrings {})))
 

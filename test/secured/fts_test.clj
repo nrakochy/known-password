@@ -78,13 +78,20 @@
     (let [result [[index "t"] [index "te"] [index "tes"] [index "test"]]]
     (is (= result (map-arbitrary-indexed index example))))))))
 
-(deftest returns-map-original-index-substrings-entry-fn-map-arbitrary-indexed-test
-  (testing "Returns map of given index, possible substrings, and original word"
+(deftest returns-sequence-indexed-substrings-entry-fn-map-arbitrary-indexed-test
+  (testing "Returns prepended index and item in a vector"
     (let [index 1]
     (let [word "test"]
-    (let [substrings ["t" "te" "tes" "test"]]
-    (let [result {:index index :substrings substrings :entry word}]
-    (is (= result (word-dict index word)))))))))
+    (let [result [[1 "t"] [1 "te"] [1 "tes"] [1 "test"]]]
+    (is (= result (indexed-substrings index word))))))))
+
+(deftest returns-trie-of-substring-occurences-fn-trie-test
+  (testing "Returns trie of substrings with vector of indices where located in the collection" 
+    (let [example ["tee" "tea" "team"]]
+    (let [result {"t" [0 1 2] "te" [0 1 2] "tee" [0] "tea" [1 2] "team" [2]}]
+    (is (= result (trie example)))))))
+
+
 
 
 

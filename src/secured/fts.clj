@@ -34,22 +34,20 @@
 
 ;;;; TRIE ;;;;
 (defn take-by-inc-index [idx word]
-  [(apply str (take (+ 1 idx) word))])
+  (apply str (take (+ 1 idx) word)))
 
 (defn substrings [word]
-  (into [] (map-indexed (fn [idx & _] (take-by-inc-index idx word)) (seq word))))
+  (map-indexed (fn [idx & _] (take-by-inc-index idx word)) (seq word)))
 
+(defn map-arbitrary-indexed [idx coll]
+    (map #(conj [idx] %) coll))
 
 (defn word-dict [idx word]
   {:index idx :substrings (substrings word) :entry word})
 
-(defn build-tree [result]
-  (let [idx (:index result)]
-  (let [strings (:substrings result)]
-  (prn (str result))
-  (mapv (fn [item] (conj [item] idx)) strings))))
+(defn minimum-prefixes [coll minimum])
 
 (defn trie [coll]
-  (let [result (map-indexed word-dict coll)]
-  (build-tree result)))
-  
+  (let [substrings (map-indexed vector coll)]
+  (build append-record substrings {})))
+

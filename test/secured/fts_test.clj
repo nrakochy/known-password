@@ -62,14 +62,34 @@
   (testing "Returns vector with a string whose length is the given number + 1" 
     (let [example "test"]
     (let [example-index 1]
-    (let [result ["te"]] 
+    (let [result "te"] 
     (is (= result (take-by-inc-index example-index example))))))))
 
 (deftest returns-collection-possible-substrings-starting-at-index0-fn-substrings-test
   (testing "Returns vector possible substrings" 
     (let [example "test"]
-    (let [result [["t"] ["te"] ["tes"] ["test"]]]
+    (let [result ["t" "te" "tes" "test"]]
     (is (= result (substrings example)))))))
+
+(deftest returns-2d-vector-item-given-index-fn-map-arbitrary-indexed-test
+  (testing "2d vector of given index + item in map"
+    (let [index 1]
+    (let [example ["t" "te" "tes" "test"]]
+    (let [result [[index "t"] [index "te"] [index "tes"] [index "test"]]]
+    (is (= result (map-arbitrary-indexed index example))))))))
+
+(deftest returns-map-original-index-substrings-entry-fn-map-arbitrary-indexed-test
+  (testing "Returns map of given index, possible substrings, and original word"
+    (let [index 1]
+    (let [word "test"]
+    (let [substrings ["t" "te" "tes" "test"]]
+    (let [result {:index index :substrings substrings :entry word}]
+    (is (= result (word-dict index word)))))))))
+
+
+
+
+
 
 
 

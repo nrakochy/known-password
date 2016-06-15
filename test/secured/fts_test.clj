@@ -24,24 +24,24 @@
     (let [result {"example1" [2 1]}]  
     (is (= result (add-val example-coll example-k example-v)))))))))
 
-(deftest returns-map-with-key-plus-value-appended-to-vec-given-fn-append-record-test
+(deftest returns-map-with-key-plus-value-appended-to-vec-given-fn-add-entry-test
   (testing "Appends given value to vector of preexisting key"
     (let [example-coll {"example1" [2]}]  
     (let [example-pair [1 "example1"]]  
     (let [result {"example1" [2 1]}]  
-    (is (= result (append-record example-coll example-pair))))))))
+    (is (= result (add-entry example-coll example-pair))))))))
 
-(deftest adds-key-plus-value-appended-to-vec-fn-append-record-test
+(deftest adds-key-plus-value-appended-to-vec-fn-add-entry-test
   (testing "Inserts key + [value] if key does not exist" 
     (let [example-coll {"example2" [2]}]  
     (let [example-pair [1 "example1"]]  
     (let [result {"example2" [2] "example1" [1]}]  
-    (is (= result (append-record example-coll example-pair))))))))
+    (is (= result (add-entry example-coll example-pair))))))))
 
 (deftest returns-map-result-recursive-given-function-call-fn-build-test
   (testing "Builds hash map recursively executing given function"   
     (let [example-coll [[0 "example1"] [1 "example1"] [2 "example2"]]]  
-    (let [example-fn append-record]
+    (let [example-fn add-entry]
     (let [empty-start {}]
     (let [result {"example2" [2] "example1" [0 1]}]  
     (is (= result (build example-fn example-coll empty-start)))))))))

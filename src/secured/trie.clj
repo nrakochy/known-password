@@ -2,7 +2,10 @@
 
 ;;; BUILD ;;;
 (defn add-entry [result item]
-  (assoc-in result (get-in result item item) {:t 1}))
+  (let [record (get-in result item)]
+  (if record
+    (update-in result (seq item) assoc :t 1)
+    (assoc-in result (get-in result item item) {:t 1}))))
 
 (defn build-trie 
   "Builds a trie from a vector of strings - returns persistent array map 
@@ -11,20 +14,20 @@
   (reduce add-entry {} coll))
 
 ;;; SEARCH ;;;
-(defn iterate-from-str-end [word]
-  (apply str (take (- (count word) 1) word)))
+(defn drop-last-str [word]
+  (apply str (drop-last word)))
 
 (defn find-branch [trie word]
   (let [branch (get-in trie word)]
   (if branch
     {:prefix word :trie branch} 
-    (recur trie (iterate-from-str-end word)))))
+    (recur trie (drop-last-str word)))))
 
-(defn combine-str [arr prefix]
+(defn results-str [arr prefix]
   (apply str prefix (drop-last arr)))
 
 (defn results [coll prefix]
-  (map #(combine-str % prefix) coll))
+  (map #(results-str % prefix) coll))
 
 (defn branch-keys
   ([trie]

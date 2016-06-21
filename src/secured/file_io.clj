@@ -1,7 +1,11 @@
-(ns secured.file-io
-  (:require [clojure.java.io :as io :refer [reader file]]))
+(ns secured.file-ioG
+  (:require [clojure.java.io :as io :refer [reader file]])
+  (:require [clojure.string :as s :refer [split-lines split]]))
 
-(def data-path "./resources/data")
+(def data-path "./resources/data/txt")
+(def trie-path "./resources/data/tries")
+(def vec-path "./resources/data/vector")
+(def clj-ext ".clj")
 
 (defn file-dir 
   "Returns canonical path of a given path"
@@ -33,4 +37,42 @@
      (doseq [line (line-seq r)]
        (let [write-file (first-letter-filename line write-path write-ext)]
        (spit write-file (str line "\r\n") :append true))))))
+
+(defn write-lines [read-file write-file]
+  (let [data (s/split-lines (slurp read-file))] 
+    (spit write-file data :append true)))
+
+(defn full-file-path [write-path filename write-ext]
+  (let [f-name (str (first (s/split filename #"[.]")) write-ext)]
+  (io/file write-path f-name)))
  
+(defn write-directory-to-files
+  "Reads each file in a given directory into memory and calls given function on it" 
+  [func read-dir write-path write-ext]
+    (let [directory (io/file (file-dir read-dir))]
+    (let [files (file-seq directory)]
+    (doseq [f files] 
+      (if-let [isFile (.isFile f)]
+	(func f (full-file-path write-path (.getName f) write-ext)))))))
+    
+;;; TRIES  ;;;
+(defn add-entry [result item]
+  (let [record (get-in result item)]
+  (if record
+    (update-in result (seq item) assoc :t 1)
+    (assoc-in result (get-in result item item) {:t 1}))))
+
+(defn build-trie 
+  "Builds a trie from a vector of strings - returns persistent array map 
+  with chars as keys and {:t 1} in map where string terminates"
+  [coll]
+  (reduce add-entry {} coll))
+
+(defn trie-to-file [read-file write-path]
+  (let [arr (io/reader (slurp read-file))] 
+  (prn arr)
+  (let [data (build-trie arr)]
+    (spit (full-file-path write-path clj-ext) data))))
+ 
+(defn trie-directory [directory]
+  (write-directory-to-file trie-to-file directory trie-path clj-ext))

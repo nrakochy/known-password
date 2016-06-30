@@ -17,11 +17,15 @@
 (defn drop-last-str [word]
   (apply str (drop-last word)))
 
-(defn find-branch [trie word]
-  (let [branch (get-in trie word)]
-  (if branch
-    {:prefix word :trie branch} 
-    (recur trie (drop-last-str word)))))
+(defn find-branch 
+  ([trie word]
+    (find-branch trie (str (first word)) (rest word)))
+  ([trie str-match remainder] 
+  (let [prefix-under-check (str str-match (first remainder))]
+  (let [branch (get-in trie prefix-under-check false)]
+  (if (or (not branch) (empty? remainder))
+    {:trie (get-in trie str-match) :prefix str-match}
+    (recur trie prefix-under-check (rest remainder)))))))
 
 (defn results-str [arr prefix]
   (apply str prefix (drop-last arr)))

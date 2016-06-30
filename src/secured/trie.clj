@@ -1,11 +1,13 @@
 (ns secured.trie) 
 
 ;;; BUILD ;;;
+(defn present-in-trie? [trie word]
+  (get-in trie word false))
+ 
 (defn add-entry [result item]
-  (let [record (get-in result item)]
-  (if record
+  (if (present-in-trie? result item) 
     (update-in result (seq item) assoc :t 1)
-    (assoc-in result (get-in result item item) {:t 1}))))
+    (assoc-in result (get-in result item item) {:t 1})))
 
 (defn build-trie 
   "Builds a trie from a vector of strings - returns persistent array map 
@@ -14,24 +16,25 @@
   (reduce add-entry {} coll))
 
 ;;; SEARCH ;;;
-(defn drop-last-str [word]
-  (apply str (drop-last word)))
-
 (defn find-branch 
   ([trie word]
     (find-branch trie (str (first word)) (rest word)))
   ([trie str-match remainder] 
   (let [prefix-under-check (str str-match (first remainder))]
-  (let [branch (get-in trie prefix-under-check false)]
-  (if (or (not branch) (empty? remainder))
+  (if (or (empty? remainder) (not (present-in-trie? trie prefix-under-check)))
     {:trie (get-in trie str-match) :prefix str-match}
-    (recur trie prefix-under-check (rest remainder)))))))
+    (recur trie prefix-under-check (rest remainder))))))
 
-(defn results-str [arr prefix]
+(defn results-str 
+  "This takes a vector of Java characters + the terminating :t symbol 
+  (which is dropped in the function) and returns a string"
+  [arr prefix]
   (apply str prefix (drop-last arr)))
 
 (defn results [coll prefix]
-  (map #(results-str % prefix) coll))
+  (if (empty? (first coll))
+    (lazy-seq (first coll))
+    (map #(results-str % prefix) coll)))
 
 (defn branch-keys
   ([trie]

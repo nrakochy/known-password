@@ -28,18 +28,14 @@
     (let [result {\t {\e {\s {\t {:t 1 \i {\n {\g {:t 1} :t 1}}}}}}}]
     (is (= result (build-trie example)))))))
 
-(deftest drops-last-letter-of-a-word-fn-drop-last-str-test
-  (testing "Drops last letter"
-    (is (= "tes" (drop-last-str "test")))))
-
-(deftest finds-branch-with-matching-prefix-fn-drop-last-str-test
+(deftest finds-branch-with-matching-prefix-fn-find-branch-test
   (testing "Returns hash with matching prefix and the children branch of said prefix"
     (let [example "test"]
     (let [trie {\t {\e {\s {\t {:t 1 \i {\n {\g {:t 1}}}}}}}}]
     (let [result {:prefix "test" :trie {:t 1 \i {\n {\g {:t 1}}}}}]
     (is (= result (find-branch trie example))))))))
 
-(deftest finds-branch-with-matching-prefix-fn-drop-last-str-test
+(deftest finds-branch-with-matching-prefix-fn-find-branch-test
   (testing "Returns hash with matching prefix and the children branch of said prefix"
     (let [example "test"]
     (let [trie {\t {\e {\s {\t {:t 1 \i {\n {\g {:t 1}}}}}}}}]

@@ -1,20 +1,27 @@
 (ns secured.file-io
   (:require [clojure.java.io :as io :refer [reader file]])
-  (:require [clojure.string :as s :refer [split-lines split]]))
+  (:require [clojure.string :as s :refer [split-lines split lower-case]]))
 
 (def password-data-path "./resources/password-data")
-(def txt-path (str password-data-path "/txt"))
-(def trie-path (str password-data-path "/tries"))
-(def vec-path (str password-data-path "/vectors"))
-(def clj-ext ".clj")
-(def txt-ext ".txt")
+
+(def write-types {:txt {:ext ".txt" :path (str password-data-path "/txt")}
+		  :vec {:ext ".clj" :path (str password-data-path "/vectors")}
+		  :trie {:ext ".clj" :path (str password-data-path "/tries")}})
+
 (def special-chars "special-chars")
 
 ;;; TRIES  ;;;
+(defn update-record 
+    "Funtion adds :t 1 to result if not yet contained in trie. Otherwise, return result"
+    [result record item]
+    (if (not (contains? record :t))
+      (update-in result (seq item) assoc :t 1)
+      result))
+
 (defn add-entry [result item]
   (let [record (get-in result item)]
   (if record
-    (update-in result (seq item) assoc :t 1)
+    (update-record result record item)
     (assoc-in result (get-in result item item) {:t 1}))))
 
 (defn build-trie 
@@ -24,78 +31,82 @@
   (reduce add-entry {} coll))
 
 ;; UTIL ;;
-(defn file-dir 
-  "Returns canonical path of a given path"
-  [path] 
-  (.getCanonicalPath (io/file path))) 
-
 (defn illegal-starting-char? 
   "Any digit or number will return false, otherwise returns char (thus true)" 
   [letter]
   (or (re-find (re-pattern "[^\\w\\s]") (str letter)) false))
 
-(defn first-letter-filename 
-   [line write-path ext]
-   (let [first-char (first line)]
-   (let [write-dir (file-dir write-path)]
-   (if (illegal-starting-char? first-char)
-      (io/file write-dir (str special-chars ext)) 
-      (io/file write-dir (str (first line) ext))))))
-
-(defn full-file-path [write-path filename write-ext]
-  (let [f-name (str (first (s/split filename #"[.]")) write-ext)]
-  (io/file write-path f-name)))
-
 ;; Individual Files ;;
+(defn str-to-filename [filename write-type]
+  "Creates valid File type class from a filename string + write-type" 
+  (io/file (file-dir (:path write-type)) (str filename (:ext write-type))))
+
+(defn split-filename-ext [read-file write-type]
+  "Splits a filename on dot character and passes it to str-to-filename + write-type"
+  (let [fname (first (s/split (.getName read-file) #"[.]"))]
+  (str-to-filename fname write-type)))
+
+(defn first-letter-filename 
+  "Reads first character of a given string. If it is an illegal filename (i.e. *-!), it passes 'special-chars' to str-to-filename. 
+  Otherwise pass first character to str-to-filename e.g. 'apple' becomes 'a'"
+   [line write-type]
+   (let [first-char (first line)]
+   (if (illegal-starting-char? first-char)
+      (str-to-filename special-chars write-type) 
+      (str-to-filename (lower-case (str (first line))) write-type)))) 
+
 (defn write-first-letter-file 
   "Takes path to read file, desired write file extension, and optional write-path. 
    Takes each line of read file as sequence and creates file named 
    (first sequence) + given extension. If (first sequence) is an illegal filename,
    i.e. characters such as *, !, etc. the line will be written to \"special-chars\" + given extension.
    Defaults to writing to ./resources/data, but can be supplied different write path if desired."
-  ([read-file write-ext] (write-first-letter-file read-file write-ext txt-path))
-  ([read-file write-ext write-path]
+  [read-file write-type] 
     (with-open [r (io/reader read-file)]
      (doseq [line (line-seq r)]
-       (let [write-file (first-letter-filename line write-path write-ext)]
-       (spit write-file (str line "\r\n") :append true))))))
+       (let [write-file (first-letter-filename line write-type)]
+       (spit write-file (str line "\r\n") :append true)))))
 
-(defn trie-to-file [read-file write-file]
+(defn file-to-txt-dir [file write-type]
+  (write-first-letter-file file write-type))
+  
+(defn trie-to-file [read-file write-type]
   (let [arr (read-string (slurp read-file))] 
   (let [data (build-trie arr)]
-    (spit write-file data :append true))))
+    (spit (split-filename-ext read-file write-type) data :append true))))
 
-(defn vectorize-file [read-file write-path]
+(defn vectorize-file [read-file write-type]
+  (prn (str read-file))
   (let [data (s/split-lines (slurp read-file))] 
-    (spit write-path data :append true)))
-
-(defn open-repo-file [string]
-  (read-string (slurp (first-letter-filename string trie-path clj-ext))))
+    (spit (split-filename-ext read-file write-type) data :append true)))
 
 ;; Directories ;;
 (defn write-directory-to-files
-  "Reads each filepath in a given directory into a seq and calls given function on it if it is a file" 
-  [func read-dir write-path write-ext]
-    (let [directory (io/file (file-dir read-dir))]
-    (let [files (file-seq directory)]
+  "Reads each filepath in a given directory into a seq and calls given function on it with a write-type if filepath is a file" 
+  [func read-dir write-type]
+    (let [files (file-seq (io/file (file-dir read-dir)))]
     (doseq [f files] 
       (if-let [isFile (.isFile f)]
-	(func f (full-file-path write-path (.getName f) write-ext)))))))
+	(func f write-type)))))
 
-(defn split-file-to-txt-dir [file]
-  (write-first-letter-file file txt-ext))
+(defn unpack-password-directory [directory]
+  (write-directory-to-files file-to-txt-dir directory (:txt write-types)))
 
 (defn vectorize-directory [directory]
-  (write-directory-to-files vectorize-file directory vec-path clj-ext))
+  (write-directory-to-files vectorize-file directory (:vec write-types)))
 
 (defn build-tries-directory [directory]
-  (write-directory-to-files trie-to-file directory trie-path clj-ext))
+  (write-directory-to-files trie-to-file directory (:trie write-types)))
 
-(defn compile-file-to-tries [filepath]
+(defn compile-file-to-tries 
+"Takes the relative path to the directory you want to convert to tries. 
+Requires existence of ./resources/password-data/ + txt + vectors + tries as prerequisite"
+  [directory]
   (dosync 
-    (prn "Compiling")
-    (let [full-path (file-dir filepath)]
-    (split-file-to-txt-dir full-path)
-    (vectorize-directory (file-dir txt-path))
-    (build-tries-directory (file-dir vec-path))
-    (prn "Successfully completed"))))
+    (prn "Compiling to txt files")
+    (unpack-password-directory directory)
+    (prn "Compiling to vectors")
+    (vectorize-directory (get-in write-types [:txt :path]))
+    (prn "Building tries from vectors")
+    (build-tries-directory (get-in write-types [:vec :path]))
+    (prn "Successfully completed")))

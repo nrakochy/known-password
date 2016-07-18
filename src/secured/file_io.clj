@@ -31,6 +31,11 @@
   (reduce add-entry {} coll))
 
 ;; UTIL ;;
+(defn file-dir 
+  "Returns canoncial path of a given path"
+  [path]
+  (.getCanonicalPath (io/file path)))
+
 (defn illegal-starting-char? 
   "Any digit or number will return false, otherwise returns char (thus true)" 
   [letter]
@@ -76,7 +81,6 @@
     (spit (split-filename-ext read-file write-type) data :append true))))
 
 (defn vectorize-file [read-file write-type]
-  (prn (str read-file))
   (let [data (s/split-lines (slurp read-file))] 
     (spit (split-filename-ext read-file write-type) data :append true)))
 
@@ -86,6 +90,7 @@
   [func read-dir write-type]
     (let [files (file-seq (io/file (file-dir read-dir)))]
     (doseq [f files] 
+      (prn (str "Parsing: " f))
       (if-let [isFile (.isFile f)]
 	(func f write-type)))))
 
@@ -98,7 +103,7 @@
 (defn build-tries-directory [directory]
   (write-directory-to-files trie-to-file directory (:trie write-types)))
 
-(defn compile-file-to-tries 
+(defn compile-directory-to-tries 
 "Takes the relative path to the directory you want to convert to tries. 
 Requires existence of ./resources/password-data/ + txt + vectors + tries as prerequisite"
   [directory]
@@ -110,3 +115,12 @@ Requires existence of ./resources/password-data/ + txt + vectors + tries as prer
     (prn "Building tries from vectors")
     (build-tries-directory (get-in write-types [:vec :path]))
     (prn "Successfully completed")))
+
+(defn find-repo [word]
+  (let [first-char (first word)]
+  (let [trie-type (:trie write-types)]
+  (if (illegal-starting-char? first-char)
+    (read-string (slurp (str-to-filename special-chars trie-type)))
+    (read-string (slurp (str-to-filename first-char trie-type)))))))
+  
+  

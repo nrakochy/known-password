@@ -2,13 +2,10 @@
   (:require [clojure.java.io :as io :refer [reader file]])
   (:require [clojure.string :as s :refer [split-lines split lower-case replace]]))
 
-(defn data-newline [line write-type]
-  (str line "\r\n"))
-
 (def password-data-path "./resources/password-data")
 
-(def write-types {:txt {:ext ".txt" :path (str password-data-path "/txt") :data-func "data-newline" :append true}
-		  :trie {:ext ".clj" :path (str password-data-path "/tries") :data-func "update-trie" :append false}})
+(def write-types {:txt {:ext ".txt" :path (str password-data-path "/txt") :data-func "data-newline" :append true :async false}
+		  :trie {:ext ".clj" :path (str password-data-path "/tries") :data-func "update-trie" :append false :async true}})
 
 (def special-chars "special-chars")
 
@@ -52,9 +49,9 @@
 (defn compact-line [line]
   (s/replace (str line) #" " ""))
 
-(defn set-data [write-type line]
+(defn set-data [write-type data]
   (let [func (symbolize write-type)]
-  ((resolve (symbol (:data-func write-type))) line write-type)))
+  ((resolve (symbol (:data-func write-type))) data write-type)))
 
 ;; IO ;;
 (defn first-letter-filename 
@@ -65,11 +62,11 @@
       (str-to-filename write-type special-chars) 
       (str-to-filename write-type (lower-case first-char)))))
 
-(defn update-trie [line write-type]
-  (let [read-file (str-to-filename write-type (first line))]
+(defn update-trie [coll write-type]
+  (let [read-file (str-to-filename write-type (first (first coll)))]
   (if (.exists read-file) 
-      (add-entry (read-string (slurp read-file)) line)
-      (add-entry {} line))))
+      (build-trie (read-string (slurp read-file)) coll)
+      (build-trie coll))))
 
 (defn write-to-file 
    [file data write-type] 
@@ -78,17 +75,23 @@
 (defn save-record [write-type line]
   (write-to-file (first-letter-filename write-type line) (set-data write-type line) write-type))
 
-(defn update-records [write-type lines]
-  (dorun (map #(save-record write-type %) lines)))
+(defn save-batch [write-type coll]
+  (let [first-record (first coll)]
+  (write-to-file (first-letter-filename write-type first-record) (set-data write-type coll) write-type)))
+
+(defn persist [write-type lines]
+  (cond
+  (:async write-type) (save-batch write-type lines) 
+  :default (dorun (map #(save-record write-type %) lines))))
 
 (defn first-letter-file 
    [read-file write-type] 
     (with-open [r (io/reader read-file)]
      (->> (line-seq r)
 	 (map compact-line) 
-	 (partition-all 1000)
+	 (partition-all 10000)
 	 (#(doseq [lines %]
-	    (update-records write-type lines))))))
+	    (persist write-type lines))))))
 
 ;; IO - Directories ;;
 (defn directory-to-files
@@ -116,5 +119,5 @@ Requires existence of ./resources/password-data/ + txt + vectors + tries as prer
   (let [first-char (first word)]
   (let [trie-type (:trie write-types)]
   (if (illegal-starting-char? first-char)
-    (read-string (slurp (str-to-filename special-chars trie-type)))
-    (read-string (slurp (str-to-filename first-char trie-type)))))))
+    (read-string (slurp (str-to-filename trie-type special-chars)))
+    (read-string (slurp (str-to-filename trie-type first-char)))))))

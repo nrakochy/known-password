@@ -1,16 +1,15 @@
 (ns secured.file-io
   (:require [clojure.java.io :as io :refer [reader file]])
-  (:require [clojure.string :as s :refer [split-lines split lower-case]]))
+  (:require [clojure.string :as s :refer [split-lines split lower-case replace]]))
 
 (def password-data-path "./resources/password-data")
 
-(def write-types {:txt {:ext ".txt" :path (str password-data-path "/txt")}
-		  :vec {:ext ".clj" :path (str password-data-path "/vectors")}
-		  :trie {:ext ".clj" :path (str password-data-path "/tries")}})
+(def write-types {:txt {:ext ".txt" :path (str password-data-path "/txt") :data-func "data-newline" :append true}
+		  :trie {:ext ".clj" :path (str password-data-path "/tries") :data-func "update-trie" :append false}})
 
 (def special-chars "special-chars")
 
-;;; TRIES  ;;;
+;;; PURE ;;;
 (defn update-record 
     "Funtion adds :t 1 to result if not yet contained in trie. Otherwise, return result"
     [result record item]
@@ -30,7 +29,6 @@
   [coll]
   (reduce add-entry {} coll))
 
-;; UTIL ;;
 (defn file-dir 
   "Returns canoncial path of a given path"
   [path]
@@ -41,79 +39,63 @@
   [letter]
   (or (re-find (re-pattern "[^\\w\\s]") (str letter)) false))
 
-;; Individual Files ;;
+;; IO - individual files ;;
 (defn str-to-filename [filename write-type]
   "Creates valid File type class from a filename string + write-type" 
   (io/file (file-dir (:path write-type)) (str filename (:ext write-type))))
 
-(defn split-filename-ext [read-file write-type]
-  "Splits a filename on dot character and passes it to str-to-filename + write-type"
-  (let [fname (first (s/split (.getName read-file) #"[.]"))]
-  (str-to-filename fname write-type)))
-
 (defn first-letter-filename 
-  "Reads first character of a given string. If it is an illegal filename (i.e. *-!), it passes 'special-chars' to str-to-filename. 
-  Otherwise pass first character to str-to-filename e.g. 'apple' becomes 'a'"
+  "Reads first character of a given string. If it is an illegal filename (i.e. *-!), it passes 'special-chars' to str-to-filename. Otherwise pass first character to str-to-filename e.g. 'apple' becomes 'a'"
    [line write-type]
-   (let [first-char (first line)]
+   (let [first-char (str (first line))]
    (if (illegal-starting-char? first-char)
       (str-to-filename special-chars write-type) 
-      (str-to-filename (lower-case (str (first line))) write-type)))) 
+      (str-to-filename (lower-case first-char) write-type))))
+
+(defn data-newline [line write-type]
+  (str line "\r\n"))
+
+(defn update-trie [line write-type]
+  (let [read-file (str-to-filename (first line) write-type)]
+  (if (.exists read-file) 
+      (add-entry (read-string (slurp read-file)) line)
+      (add-entry {} line))))
+
+(defn set-data [line write-type]
+  ((resolve (symbol (:data-func write-type))) line write-type))
+
+(defn write-to-file 
+   [write-file data write-type] 
+       (spit write-file data :append (:append write-type)))
 
 (defn write-first-letter-file 
-  "Takes path to read file, desired write file extension, and optional write-path. 
-   Takes each line of read file as sequence and creates file named 
-   (first sequence) + given extension. If (first sequence) is an illegal filename,
-   i.e. characters such as *, !, etc. the line will be written to \"special-chars\" + given extension.
-   Defaults to writing to ./resources/data, but can be supplied different write path if desired."
-  [read-file write-type] 
+   [read-file write-type] 
     (with-open [r (io/reader read-file)]
      (doseq [line (line-seq r)]
-       (let [write-file (first-letter-filename line write-type)]
-       (spit write-file (str line "\r\n") :append true)))))
+       (let [compacted-line (s/replace (str line) #" " "")]
+       (let [write-file (first-letter-filename compacted-line write-type)]
+       (write-to-file write-file (set-data compacted-line write-type) write-type))))))
 
-(defn file-to-txt-dir [file write-type]
-  (write-first-letter-file file write-type))
-  
-(defn trie-to-file [read-file write-type]
-  (let [arr (read-string (slurp read-file))] 
-  (let [data (build-trie arr)]
-    (spit (split-filename-ext read-file write-type) data :append true))))
-
-(defn vectorize-file [read-file write-type]
-  (let [data (s/split-lines (slurp read-file))] 
-    (spit (split-filename-ext read-file write-type) data :append true)))
-
-;; Directories ;;
+;; IO - Directories ;;
 (defn write-directory-to-files
   "Reads each filepath in a given directory into a seq and calls given function on it with a write-type if filepath is a file" 
-  [func read-dir write-type]
+  [read-dir write-type]
     (let [files (file-seq (io/file (file-dir read-dir)))]
     (doseq [f files] 
       (prn (str "Parsing: " f))
       (if-let [isFile (.isFile f)]
-	(func f write-type)))))
+	(write-first-letter-file f write-type)))))
 
-(defn unpack-password-directory [directory]
-  (write-directory-to-files file-to-txt-dir directory (:txt write-types)))
-
-(defn vectorize-directory [directory]
-  (write-directory-to-files vectorize-file directory (:vec write-types)))
-
-(defn build-tries-directory [directory]
-  (write-directory-to-files trie-to-file directory (:trie write-types)))
-
+;; API
 (defn compile-directory-to-tries 
 "Takes the relative path to the directory you want to convert to tries. 
 Requires existence of ./resources/password-data/ + txt + vectors + tries as prerequisite"
   [directory]
   (dosync 
     (prn "Compiling to txt files")
-    (unpack-password-directory directory)
-    (prn "Compiling to vectors")
-    (vectorize-directory (get-in write-types [:txt :path]))
-    (prn "Building tries from vectors")
-    (build-tries-directory (get-in write-types [:vec :path]))
+    (write-directory-to-files directory (:txt write-types))
+    (prn "Building tries from txt files")
+    (write-directory-to-files (get-in write-types [:txt :path]) (:trie write-types))
     (prn "Successfully completed")))
 
 (defn find-repo [word]
@@ -122,5 +104,3 @@ Requires existence of ./resources/password-data/ + txt + vectors + tries as prer
   (if (illegal-starting-char? first-char)
     (read-string (slurp (str-to-filename special-chars trie-type)))
     (read-string (slurp (str-to-filename first-char trie-type)))))))
-  
-  

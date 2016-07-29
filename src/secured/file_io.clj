@@ -5,7 +5,7 @@
 (def password-data-path "./resources/password-data")
 
 (def write-types {:txt {:ext ".txt" :path (str password-data-path "/txt") :data-func "data-newline" :append true :async false}
-		  :trie {:ext ".txt" :path (str password-data-path "/tries") :data-func "update-trie" :append false :async true}})
+		  :trie {:ext ".clj" :path (str password-data-path "/tries") :data-func "update-trie" :append false :async false}})
 
 (def special-chars "special-chars")
 
@@ -52,9 +52,9 @@
       (str-to-filename write-type (lower-case (str (first line))))))
 
 (defn update-trie [coll write-type]
-  (if (.exists (str-to-filename write-type (first (first coll)))) 
-      (build-trie (read-string (slurp (str-to-filename write-type (first (first coll))))) coll)
-      (build-trie {} coll)))
+  (if (.exists (str-to-filename write-type (first (seq coll)))) 
+      (add-entry (read-string (slurp (str-to-filename write-type (first (seq coll))))) coll)
+      (add-entry {} coll)))
 
 (defn write-to-file 
    [file data write-type] 
@@ -97,7 +97,6 @@
 
 ;; IO - Directories ;;
 (defn directory-to-files-in-mem
-  "Reads each filepath in a given directory into a seq and calls given function on it with a write-type if filepath is a file" 
   [read-dir write-type]
     (doseq [f (file-seq (io/file (file-dir read-dir)))] 
       (prn (str "Parsing: " f))
@@ -121,4 +120,4 @@ Requires existence of ./resources/password-data/ + txt + vectors + tries as prer
   (let [trie-type (:trie write-types)]
   (if (illegal-starting-char? first-char)
     (read-string (slurp (str-to-filename trie-type special-chars)))
-    (read-string (slurp (str-to-filename trie-type first-char)))))
+    (read-string (slurp (str-to-filename trie-type first-char)))))))

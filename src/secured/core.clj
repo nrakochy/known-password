@@ -9,7 +9,7 @@
 
 (defn check-password [word]
   "Takes a string and returns a map with :related-passwords in a vector and known-password? with a boolean- 
-   (check-password "01234567");;-> {:known-password? true :related-passwords ["01234567" "0123456789"]"
+   (check-password '01234567');;-> {:known-password? true :related-passwords ['01234567' '0123456789']"
  (let [trie (find-repo word)]
  (let [related-passwords {:related-passwords (into [] (search trie word))}]
   (if (present-in-trie? trie word)

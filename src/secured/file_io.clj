@@ -30,12 +30,18 @@
   [letter]
   (or (re-find (re-pattern "[^\\w\\s]") (str letter)) false))
 
+(defn legal-starting-chars? 
+  "Returns boolean based on result of checking result sequence of the fn illegal-starting-char? on a collection"
+  [string]
+  (every? false? (map illegal-starting-char? (seq string))))
+
 (defn str-to-filename [write-type filename]
   "Creates valid File type class from a filename string + write-type" 
   (io/file (file-dir (:path write-type)) (str filename (:ext write-type))))
 
 (defn data-newline [line write-type]
-  (str line "\r\n"))
+  (if (not (empty? line))
+    (str line "\r\n")))
 
 (defn compact-line [line]
   (s/replace (str line) #" " ""))
@@ -47,12 +53,15 @@
 (defn read-trie-file [file] 
   (read-string (slurp file))) 
 
+(defn truncate [string]
+  (lower-case (apply str (take 2 string))))
+
 (defn set-filename 
   "Reads first character of a given string. If it is an illegal filename (i.e. *-!), it passes 'special-chars' to str-to-filename. Otherwise pass first character to str-to-filename e.g. 'apple' becomes 'a'"
    [write-type line]
-   (if (illegal-starting-char? (str (first line)))
-      (str-to-filename write-type special-chars) 
-      (str-to-filename write-type (lower-case (str (first line))))))
+   (if (legal-starting-chars? (truncate line))
+      (str-to-filename write-type (truncate line))
+      (str-to-filename write-type special-chars))) 
 
 (defn update-trie [coll write-type]
   (if (.exists (set-filename write-type (first coll)))  
@@ -84,7 +93,7 @@
 	    (persist write-type lines))))))
 
 (defn process-in-mem 
-   [write-type read-file] 
+   [read-file write-type] 
     (with-open [r (io/reader read-file)]
      (->> (doall (line-seq r))
 	  (persist write-type))))
@@ -103,24 +112,24 @@
   [read-dir write-type]
     (doseq [f (file-seq (io/file (file-dir read-dir)))] 
       (prn (str "Parsing: " f))
-      (if (.isFile f)
-	  (process-in-mem write-type f))))
+      (if (.isFile f) 
+	  (process-in-mem f write-type))))
 
 ;; API
 (defn compile-directory-to-tries 
 "Takes the relative path to the directory you want to convert to tries. 
-Requires existence of ./resources/password-data/ + txt + vectors + tries as prerequisite"
+Requires existence of ./resources/password-data/ + txt/ & /tries as prerequisite"
   [directory]
   (dosync 
     (prn "Compiling to txt files")
     (directory-to-files directory (:txt write-types))
     (prn "Building tries from txt files")
-    (directory-to-files (get-in write-types [:txt :path]) (:trie write-types))
+    (directory-to-files-in-mem (get-in write-types [:txt :path]) (:trie write-types))
     (prn "Successfully completed")))
 
 (defn find-repo [word]
-  (let [first-char (first word)]
+  (let [repo-abbrv (truncate word)]
   (let [trie-type (:trie write-types)]
-  (if (illegal-starting-char? first-char)
-    (read-trie-file (str-to-filename trie-type special-chars))
-    (read-trie-file (str-to-filename trie-type first-char))))))
+  (if (legal-starting-chars? repo-abbrv)
+    (read-trie-file (str-to-filename trie-type repo-abbrv))
+    (read-trie-file (str-to-filename trie-type special-chars))))))

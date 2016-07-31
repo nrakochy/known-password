@@ -1,6 +1,6 @@
 (ns secured.file-io
   (:require [clojure.java.io :as io :refer [reader file]])
-  (:require [clojure.string :as s :refer [split-lines split lower-case replace]]))
+  (:require [clojure.string :as s :refer [split-lines lower-case replace]]))
 
 (def password-data-path "./resources/password-data")
 
@@ -12,13 +12,20 @@
 ;;; PURE ;;;
 (defn add-entry [result item]
   (if (get-in result item) 
-    (update-in result (apply str (seq item)) assoc :t 1)
+    (update-in result (apply str item) assoc :t 1)
     (assoc-in result (get-in result (apply str item) (apply str item)) {:t 1})))
 
 (defn build-trie 
   "Builds a trie from a vector of strings - returns persistent array map 
   with chars as keys and {:t 1} in map where string terminates"
-  [existing-records coll] (reduce add-entry existing-records coll))
+  [result coll] 
+  (loop [result {} c (seq coll)]
+    (if (or (empty? c) (nil? c))
+        result
+	(recur (add-entry result (first c)) (rest c)))))
+
+(defn update-trie [coll write-type]
+  (build-trie {} coll))
 
 (defn file-dir 
   "Returns canoncial path of a given path"
@@ -63,11 +70,6 @@
       (str-to-filename write-type (truncate line))
       (str-to-filename write-type special-chars))) 
 
-(defn update-trie [coll write-type]
-  (if (.exists (set-filename write-type (first coll)))  
-      (build-trie (read-trie-file (set-filename write-type (first coll))) coll)
-      (build-trie {} coll)))
-
 (defn write-to-file 
    [file data write-type] 
        (spit file data :append (:append write-type)))
@@ -80,7 +82,7 @@
 
 (defn persist [write-type lines]
   (cond
-  (:async write-type) (save-batch write-type lines) 
+  (:async write-type) (dorun (save-batch write-type lines)) 
   :default (dorun (map #(save-record write-type %) lines))))
 
 (defn process-file 
@@ -95,7 +97,7 @@
 (defn process-in-mem 
    [read-file write-type] 
     (with-open [r (io/reader read-file)]
-     (->> (doall (line-seq r))
+     (->> (line-seq r)
 	  (persist write-type))))
 
 ;; IO - Directories ;;

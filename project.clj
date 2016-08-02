@@ -4,5 +4,5 @@
   :resource-paths ["shared" "resources"] 
   :license {:name "Eclipse Public License"
   :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :jvm-opts ["-Xms4g" "-Xmx4g"]
+  :jvm-opts ["-Xms8G" "-Xmx8G" "-Xss8G" "-server"]
   :dependencies [[org.clojure/clojure "1.8.0"]])

@@ -1,31 +1,25 @@
 (ns secured.file-io
-  (:require [clojure.java.io :as io :refer [reader file]])
+  (:require [clojure.java.io :as io :refer [reader file input-stream]])
   (:require [clojure.string :as s :refer [split-lines lower-case replace]]))
 
 (def password-data-path "./resources/password-data")
 
 (def write-types {:txt {:ext ".txt" :path (str password-data-path "/txt") :data-func "data-newline" :append true :async false}
-		  :trie {:ext ".clj" :path (str password-data-path "/tries") :data-func "update-trie" :append false :async true}})
+		  :trie {:ext ".clj.gz" :path (str password-data-path "/tries") :data-func "build-trie" :append false :async true}})
 
 (def special-chars "special-chars")
 
 ;;; PURE ;;;
 (defn add-entry [result item]
   (if (get-in result item) 
-    (update-in result (apply str item) assoc :t 1)
+    (update-in result (apply str (seq item)) assoc :t 1)
     (assoc-in result (get-in result (apply str item) (apply str item)) {:t 1})))
 
 (defn build-trie 
-  "Builds a trie from a vector of strings - returns persistent array map 
+  "Builds a trie from a seq of strings - returns persistent array map 
   with chars as keys and {:t 1} in map where string terminates"
-  [result coll] 
-  (loop [result {} c (seq coll)]
-    (if (or (empty? c) (nil? c))
-        result
-	(recur (add-entry result (first c)) (rest c)))))
-
-(defn update-trie [coll write-type]
-  (build-trie {} coll))
+  [coll] 
+  (reduce add-entry {} coll))
 
 (defn file-dir 
   "Returns canoncial path of a given path"
@@ -46,7 +40,7 @@
   "Creates valid File type class from a filename string + write-type" 
   (io/file (file-dir (:path write-type)) (str filename (:ext write-type))))
 
-(defn data-newline [line write-type]
+(defn data-newline [line]
   (if (not (empty? line))
     (str line "\r\n")))
 
@@ -54,17 +48,20 @@
   (s/replace (str line) #" " ""))
 
 (defn set-data [write-type data]
-  ((resolve (symbol (:data-func write-type))) data write-type))
+  ((resolve (symbol (:data-func write-type))) data))
 
 ;; IO ;;
 (defn read-trie-file [file] 
-  (read-string (slurp file))) 
+  (with-open [stream (java.util.zip.GZIPInputStream. 
+		      (clojure.java.io/input-stream file))]
+  (slurp stream)))
 
 (defn truncate [string]
   (lower-case (apply str (take 2 string))))
 
 (defn set-filename 
-  "Reads first character of a given string. If it is an illegal filename (i.e. *-!), it passes 'special-chars' to str-to-filename. Otherwise pass first character to str-to-filename e.g. 'apple' becomes 'a'"
+  "Reads first two characters of a given string. If it is an illegal filename (i.e. *-!), it passes 'special-chars' to str-to-filename. 
+  Otherwise pass first character to str-to-filename e.g. 'apple' becomes 'ap'"
    [write-type line]
    (if (legal-starting-chars? (truncate line))
       (str-to-filename write-type (truncate line))
@@ -74,11 +71,19 @@
    [file data write-type] 
        (spit file data :append (:append write-type)))
 
+(defn compress-to-file [file data write-type]
+  (with-open [w (-> file 
+                  clojure.java.io/output-stream
+                  java.util.zip.GZIPOutputStream.
+                  clojure.java.io/writer)]
+  (binding [*out* w]
+    (spit w data))))
+
 (defn save-record [write-type line]
   (write-to-file (set-filename write-type line) (set-data write-type line) write-type))
 
 (defn save-batch [write-type coll]
-  (write-to-file (set-filename write-type (first coll)) (set-data write-type coll) write-type))
+  (compress-to-file (set-filename write-type (first coll)) (set-data write-type coll) write-type))
 
 (defn persist [write-type lines]
   (cond
@@ -133,5 +138,5 @@ Requires existence of ./resources/password-data/ + txt/ & /tries as prerequisite
   (let [repo-abbrv (truncate word)]
   (let [trie-type (:trie write-types)]
   (if (legal-starting-chars? repo-abbrv)
-    (read-trie-file (str-to-filename trie-type repo-abbrv))
-    (read-trie-file (str-to-filename trie-type special-chars))))))
+    (read-string (read-trie-file (str-to-filename trie-type repo-abbrv)))
+    (read-string (read-trie-file (str-to-filename trie-type special-chars)))))))
